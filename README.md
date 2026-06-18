@@ -109,19 +109,3 @@ Example scoring output:
   "decision": "approve"
 }
 ```
-
-Example drift output flags the shifted interest-rate distribution as `watch`, while most borrower features remain stable.
-
-## Why This Matters
-
-Most GenAI portfolios over-index on chat demos. This project shows traditional ML discipline that hiring teams still care about:
-
-- model calibration, not just accuracy
-- threshold and capture-rate thinking
-- drift monitoring
-- explainable feature weights
-- deployment-ready scoring
-
-## Portfolio Resume Bullet
-
-Built an end-to-end credit default modeling system with synthetic lending data, feature engineering, from-scratch logistic regression, calibration analysis, AUC/Gini/KS/capture-rate reporting, drift monitoring via PSI, and deployment-ready scoring API/CLI.
