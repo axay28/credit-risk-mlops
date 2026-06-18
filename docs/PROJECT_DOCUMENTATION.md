@@ -1,50 +1,37 @@
-# Internal Project Documentation
+# Project Documentation
 
-This document is written for interview prep and personal understanding. It explains what this project does, why each part exists, and how to talk about it.
+This document explains the project architecture, workflow, modeling choices, and operational components for the credit risk MLOps system.
 
-## One-Minute Explanation
+## Overview
 
-I built a production-style credit risk MLOps project. It simulates loan applications, trains a probability-of-default model, evaluates it with credit-risk metrics like AUC, Gini, KS, and capture rate, checks calibration, monitors data drift with PSI, exposes a FastAPI scoring service, and presents the results in a deployed Streamlit dashboard.
+Credit Risk MLOps is a production-style machine learning project for probability-of-default modeling. It simulates loan applications, trains a credit risk model, evaluates it with credit-risk metrics, monitors data drift with PSI, exposes a FastAPI scoring service, and presents model performance in a Streamlit dashboard.
 
-The point was to show ML engineering skills that are not visible from my RAG/GenAI work: traditional ML modeling, risk evaluation, model monitoring, API deployment, and MLOps workflow design.
+The project covers:
 
-## Why I Built This
-
-My resume already shows:
-
-- RAG and healthcare AI through Radiant
-- AWS/data pipelines through Atgeir
-- dashboards/reporting through Jerseystem
-- GenAI experience through research work
-
-The missing portfolio signal was:
-
-- traditional supervised ML
-- fintech/credit modeling
-- model calibration
+- traditional supervised machine learning
+- fintech-oriented credit risk modeling
+- model calibration and ranking metrics
 - drift monitoring
-- FastAPI model serving
-- MLflow-style experiment tracking
-- a deployed dashboard
-
-This project fills that gap.
+- API-based model serving
+- MLflow experiment tracking
+- Streamlit deployment
 
 ## End-to-End Workflow
 
 The project follows this flow:
 
 1. `src/generate_data.py` creates synthetic lending data.
-2. `src/model.py` turns raw applicant fields into model features.
+2. `src/model.py` transforms raw applicant fields into model features.
 3. `src/train.py` trains the logistic regression model.
 4. `src/metrics.py` calculates model performance metrics.
 5. `src/drift.py` compares a current portfolio against the reference portfolio.
 6. `app/main.py` exposes model scoring through FastAPI.
 7. `app/dashboard.py` displays metrics and monitoring artifacts in Streamlit.
-8. `app/bootstrap.py` makes deployment easier by generating missing artifacts automatically.
+8. `app/bootstrap.py` generates missing artifacts automatically for deployment.
 
 ## Data Generation
 
-The data is synthetic but designed to behave like loan data. Each row is a borrower/application.
+The data is synthetic but designed to behave like loan application data. Each row represents one borrower/application.
 
 Fields:
 
@@ -60,7 +47,7 @@ Fields:
 - `loan_purpose`
 - `defaulted`
 
-The default label is generated from a realistic risk formula:
+The default label is generated from a risk formula:
 
 - higher debt-to-income increases default risk
 - higher interest rate increases risk
@@ -71,7 +58,7 @@ The default label is generated from a realistic risk formula:
 - higher income reduces risk
 - some loan purposes are riskier than others
 
-This gives the model a signal to learn while keeping the project self-contained and deployable without external datasets.
+This gives the model a meaningful signal to learn while keeping the project self-contained and deployable without external datasets.
 
 ## Feature Engineering
 
@@ -80,29 +67,29 @@ This gives the model a signal to learn while keeping the project self-contained 
 - numeric feature selection
 - one-hot encoding for `loan_purpose`
 - mean/std standardization
-- storing feature statistics for inference
+- storage of feature statistics for inference
 
-Standardization matters because the logistic model is trained with gradient descent. Features like income and loan amount have much larger numeric scales than delinquency counts or DTI, so scaling makes optimization stable.
+Standardization matters because the logistic model is trained with gradient descent. Features like income and loan amount have much larger numeric scales than delinquency counts or DTI, so scaling keeps optimization stable.
 
 ## Model
 
 The model is a from-scratch logistic regression implemented with NumPy.
 
-Why logistic regression?
+Logistic regression is a good fit because:
 
-- It is common in credit risk modeling.
-- It produces a probability of default.
-- It is interpretable through coefficients.
-- It is simple enough to explain clearly in interviews.
-- It lets the project focus on MLOps and risk metrics rather than hiding everything inside a black-box library.
+- it is common in credit risk modeling
+- it produces a probability of default
+- it is interpretable through coefficients
+- it keeps the modeling logic transparent
+- it lets the project focus on MLOps and risk metrics
 
-Training:
+Training process:
 
-- initialize weights at zero
-- calculate predicted probabilities using sigmoid
-- compute prediction error
-- update weights with gradient descent
-- apply L2 regularization
+1. Initialize weights.
+2. Generate predicted probabilities with sigmoid.
+3. Compute prediction error.
+4. Update weights with gradient descent.
+5. Apply L2 regularization.
 
 Output:
 
@@ -118,11 +105,11 @@ The model file contains:
 
 ## Metrics
 
-The project does not rely on plain accuracy because credit datasets can be imbalanced and ranking quality matters more.
+The project does not rely on plain accuracy because credit datasets can be imbalanced and ranking quality matters more than raw classification accuracy.
 
 ### AUC
 
-AUC measures whether risky borrowers are ranked above safer borrowers. AUC around 0.74 means the model has useful separation.
+AUC measures whether risky borrowers are ranked above safer borrowers. AUC around 0.74 indicates useful separation.
 
 ### Gini
 
@@ -140,13 +127,11 @@ KS measures the maximum separation between cumulative distributions of defaults 
 
 ### Capture Rate
 
-Capture rate answers: if we review the riskiest 10% or 20% of applications, what percentage of all defaults do we catch?
-
-This is more business-friendly than accuracy.
+Capture rate measures how many defaults are captured by reviewing the highest-risk slice of the application population.
 
 ### Calibration
 
-Calibration compares predicted default probability against observed default rate by score bucket. It answers whether a predicted 20% risk group actually defaults around 20% of the time.
+Calibration compares predicted default probability against observed default rate by score bucket. It checks whether predicted probabilities match actual default frequency.
 
 ### PSI
 
@@ -158,9 +143,9 @@ Rough interpretation:
 - 0.10 to 0.20: watch
 - above 0.20: investigate
 
-In this project, the generated current dataset intentionally shifts interest rate and DTI slightly so the drift report has something meaningful to show.
+In this project, the generated current dataset intentionally shifts interest rate and DTI slightly so the drift report has meaningful behavior to display.
 
-## FastAPI
+## FastAPI Service
 
 `app/main.py` exposes:
 
@@ -170,11 +155,11 @@ In this project, the generated current dataset intentionally shifts interest rat
 - `POST /score`: scores one applicant
 - `POST /score-batch`: scores multiple applicants
 
-The API loads the saved model and uses the same feature engineering statistics from training, which is important because inference must transform inputs exactly like training.
+The API loads the saved model and uses the same feature engineering statistics from training. This keeps inference transformations consistent with training.
 
 ## Streamlit Dashboard
 
-`app/dashboard.py` is the public-facing demo.
+`app/dashboard.py` is the public-facing dashboard.
 
 It shows:
 
@@ -188,8 +173,6 @@ It shows:
 - PSI drift table
 - PSI bar chart
 - training data preview
-
-This is what recruiters or hiring managers can open quickly to understand the project.
 
 Live app:
 
@@ -212,7 +195,7 @@ Logged items:
 - calibration CSV
 - feature importance CSV
 
-If MLflow is missing, training still runs. This makes the project robust in lightweight environments like Streamlit Cloud.
+If MLflow is missing, training still runs. This keeps the project robust in lightweight environments like Streamlit Community Cloud.
 
 ## Bootstrap
 
@@ -232,7 +215,7 @@ If any are missing, it runs:
 2. train model
 3. build drift report
 
-This is useful because generated artifacts are not committed to GitHub, but Streamlit Cloud still needs them at runtime.
+This is useful because generated artifacts are not committed to GitHub, while Streamlit Community Cloud still needs them at runtime.
 
 ## Files Not Committed
 
@@ -245,7 +228,7 @@ The project intentionally does not commit generated files such as:
 
 These are reproducible artifacts generated from source code.
 
-## How To Run Locally
+## Local Development
 
 ```bash
 cd "/Users/akshaymulgund/Documents/New project 2/credit-risk-mlops"
@@ -263,39 +246,27 @@ Open:
 - FastAPI docs: `http://127.0.0.1:8000/docs`
 - MLflow: `http://127.0.0.1:5000`
 
-## What To Say In Interviews
+## Engineering Highlights
 
-Short answer:
+- From-scratch NumPy logistic regression keeps the model implementation transparent.
+- Credit-risk metrics are used instead of generic accuracy.
+- Train-time artifacts are separated from inference-time logic.
+- PSI drift monitoring shows post-training population stability.
+- FastAPI supports both single and batch scoring.
+- Streamlit deployment works without committed generated artifacts because bootstrap creates them at startup.
+- The project is self-contained with synthetic data, so it can run without third-party datasets or credentials.
 
-> I built a credit-risk MLOps project that predicts probability of default from loan application features. I implemented the model in NumPy, evaluated it with credit-risk metrics like AUC, Gini, KS, capture rate, and calibration, added PSI drift monitoring, exposed scoring through FastAPI, logged experiments with MLflow, and deployed a Streamlit dashboard.
-
-Longer answer:
-
-> I wanted to build something different from my RAG work, so I chose a fintech ML problem. The project simulates a lending portfolio, trains a logistic probability-of-default model, and focuses on production concerns: reproducible training, model artifacts, probability calibration, drift monitoring, and API serving. I also added a Streamlit dashboard so non-technical stakeholders can inspect metrics and drift without reading code.
-
-## Strong Talking Points
-
-- I implemented logistic regression from scratch to show fundamentals.
-- I used credit-risk metrics rather than generic accuracy.
-- I separated train-time artifacts from inference-time logic.
-- I added PSI to show monitoring after deployment.
-- I exposed both single and batch scoring endpoints.
-- I made the Streamlit app deployable by generating artifacts automatically.
-- I kept the project self-contained with synthetic data so anyone can run it.
-
-## Limitations
-
-Be honest if asked:
+## Known Constraints
 
 - The dataset is synthetic, not a real lending dataset.
-- The model is logistic regression, not CatBoost/XGBoost.
-- There is no real database or production scheduler.
+- The model is logistic regression, not CatBoost or XGBoost.
+- There is no production database or scheduler.
 - The monitoring report is batch-based, not real-time.
 - Thresholds are illustrative and not regulated credit policy.
 
-These limitations are acceptable because the project is built to demonstrate engineering workflow, not to be a production lending decision system.
+These constraints keep the project focused on the machine learning engineering workflow rather than production lending operations.
 
-## Best Next Improvements
+## Future Work
 
 High-value future upgrades:
 
@@ -303,14 +274,7 @@ High-value future upgrades:
 2. Add SHAP explainability.
 3. Add a model registry promotion step in MLflow.
 4. Add GitHub Actions CI.
-5. Add Docker Compose for API + dashboard.
+5. Add Docker Compose for API and dashboard.
 6. Add a Postgres-backed scoring history table.
 7. Add threshold optimization by expected profit/loss.
 8. Add fairness checks across synthetic demographic segments.
-
-## Resume Version
-
-Use this resume bullet:
-
-> Built an end-to-end credit default modeling and MLOps system with synthetic lending data, feature engineering, from-scratch NumPy logistic regression, calibration analysis, AUC/Gini/KS/capture-rate reporting, PSI drift monitoring, MLflow experiment tracking, FastAPI scoring endpoints, and a deployed Streamlit dashboard.
-

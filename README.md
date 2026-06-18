@@ -4,11 +4,11 @@ Live app: https://credit-risk-mlops-dvum3nelkcgipt4aea5laa.streamlit.app/
 
 GitHub repo: https://github.com/axay28/credit-risk-mlops
 
-An end-to-end credit default modeling project that shows practical machine learning engineering for fintech and lending use cases. The system generates a realistic synthetic lending portfolio, trains a credit risk model, evaluates it with industry-style risk metrics, monitors population drift, exposes a scoring API, and ships a Streamlit dashboard.
+An end-to-end credit default modeling project for fintech and lending use cases. The system generates a realistic synthetic lending portfolio, trains a credit risk model, evaluates it with industry-style risk metrics, monitors population drift, exposes a scoring API, and ships a Streamlit dashboard.
 
-This project was built to demonstrate skills beyond RAG and GenAI chatbots: traditional ML modeling discipline, model evaluation, calibration, drift monitoring, deployment patterns, and MLOps tooling.
+The project focuses on traditional ML modeling discipline, model evaluation, calibration, drift monitoring, deployment patterns, and MLOps tooling.
 
-## What I Built
+## What It Does
 
 The project simulates a lending workflow:
 
@@ -22,7 +22,7 @@ The project simulates a lending workflow:
 
 ## Why This Project Matters
 
-Most AI portfolios show chat demos. This project shows the parts of ML work that companies still need in production:
+Many AI demos stop at the model output. This project includes the surrounding ML engineering work needed for production-style systems:
 
 - choosing useful model metrics, not just accuracy
 - understanding default risk ranking with AUC, Gini, KS, and capture rate
@@ -50,7 +50,7 @@ It is especially relevant for roles such as:
 - Docker
 - Uvicorn
 
-The core model is a from-scratch NumPy logistic regression model. I intentionally implemented this instead of hiding everything behind a library so the project demonstrates understanding of feature scaling, optimization, coefficients, probability scoring, and evaluation.
+The core model is a from-scratch NumPy logistic regression model. This keeps the modeling logic transparent across feature scaling, optimization, coefficients, probability scoring, and evaluation.
 
 ## Project Structure
 
