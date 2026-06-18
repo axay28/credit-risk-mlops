@@ -1,0 +1,7 @@
+data/*.csv
+data/*.json
+data/*.txt
+models/*.json
+__pycache__/
+*.pyc
+
