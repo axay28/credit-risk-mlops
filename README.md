@@ -229,6 +229,4 @@ The app is already deployed here:
 
 https://credit-risk-mlops-dvum3nelkcgipt4aea5laa.streamlit.app/
 
-## Portfolio Resume Bullet
 
-Built an end-to-end credit default modeling and MLOps system with synthetic lending data, feature engineering, from-scratch NumPy logistic regression, calibration analysis, AUC/Gini/KS/capture-rate reporting, PSI drift monitoring, MLflow experiment tracking, FastAPI scoring endpoints, and a deployed Streamlit dashboard.
