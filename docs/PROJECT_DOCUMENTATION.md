@@ -24,7 +24,7 @@ The project follows this flow:
 2. `src/model.py` transforms raw applicant fields into model features.
 3. `src/train.py` trains the logistic regression model.
 4. `src/metrics.py` calculates model performance metrics.
-5. `src/drift.py` compares a current portfolio against the reference portfolio.
+5. `src/drift.py` compares current loan application data against the reference training data.
 6. `app/main.py` exposes model scoring through FastAPI.
 7. `app/dashboard.py` displays metrics and monitoring artifacts in Streamlit.
 8. `app/bootstrap.py` generates missing artifacts automatically for deployment.
