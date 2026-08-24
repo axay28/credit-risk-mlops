@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from bootstrap import ensure_artifacts
+import bootstrap
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
@@ -15,7 +16,10 @@ DATA_DIR = ROOT / "data"
 st.set_page_config(page_title="Credit Risk MLOps", layout="wide")
 st.title("Credit Risk MLOps Dashboard")
 with st.spinner("Preparing model artifacts..."):
-    ensure_artifacts()
+    # Streamlit may rerun this script without restarting the Python process after a deploy.
+    # Reload bootstrap so newly required artifacts are recognized immediately.
+    importlib.reload(bootstrap)
+    bootstrap.ensure_artifacts()
 
 
 @st.cache_data
