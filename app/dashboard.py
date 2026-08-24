@@ -33,8 +33,10 @@ calibration_path = DATA_DIR / "calibration_table.csv"
 importance_path = DATA_DIR / "feature_importance.csv"
 drift_path = DATA_DIR / "drift_report.csv"
 loans_path = DATA_DIR / "loans_train.csv"
+comparison_path = DATA_DIR / "model_comparison.csv"
+threshold_path = DATA_DIR / "threshold_analysis.csv"
 
-missing = [path.name for path in [report_path, calibration_path, importance_path, drift_path, loans_path] if not path.exists()]
+missing = [path.name for path in [report_path, calibration_path, importance_path, drift_path, loans_path, comparison_path, threshold_path] if not path.exists()]
 if missing:
     st.warning("Run `python src/generate_data.py && python src/train.py && python src/drift.py` first.")
     st.write("Missing:", ", ".join(missing))
@@ -45,6 +47,8 @@ calibration = read_csv(calibration_path)
 importance = read_csv(importance_path)
 drift = read_csv(drift_path)
 loans = read_csv(loans_path)
+comparison = read_csv(comparison_path)
+thresholds = read_csv(threshold_path)
 
 metric_cols = st.columns(5)
 metric_cols[0].metric("AUC", f"{report['auc']:.3f}")
@@ -70,6 +74,21 @@ with right:
 st.subheader("Population Stability Index")
 st.dataframe(drift, use_container_width=True)
 st.bar_chart(drift.set_index("feature")["psi"])
+
+left, right = st.columns(2)
+with left:
+    st.subheader("Model Selection")
+    st.dataframe(comparison, use_container_width=True, hide_index=True)
+    st.caption("Validation performance across regularization strengths; the highest AUC wins.")
+with right:
+    st.subheader("Approval Threshold Simulator")
+    selected_threshold = st.slider("Maximum probability of default", 0.05, 0.50, 0.18, 0.025)
+    selected = thresholds.iloc[(thresholds["threshold"] - selected_threshold).abs().argmin()]
+    cols = st.columns(3)
+    cols[0].metric("Approval Rate", f"{selected['approval_rate']:.1%}")
+    cols[1].metric("Approved Bad Rate", f"{selected['approved_bad_rate']:.1%}")
+    cols[2].metric("Defaults Captured", f"{selected['defaults_captured']:.1%}")
+    st.line_chart(thresholds.set_index("threshold")[["approval_rate", "approved_bad_rate"]])
 
 st.subheader("Training Data Snapshot")
 st.dataframe(loans.head(100), use_container_width=True)

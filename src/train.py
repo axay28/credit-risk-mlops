@@ -5,7 +5,16 @@ from typing import Any
 
 import pandas as pd
 
-from metrics import calibration_table, capture_rate_at_k, gini, ks_statistic, roc_auc
+from metrics import (
+    brier_score,
+    calibration_table,
+    capture_rate_at_k,
+    expected_calibration_error,
+    gini,
+    ks_statistic,
+    roc_auc,
+    threshold_table,
+)
 from model import LogisticRiskModel
 
 
@@ -38,11 +47,32 @@ def log_to_mlflow(report: dict[str, Any], model: LogisticRiskModel) -> None:
 
 def main() -> None:
     df = pd.read_csv(DATA_DIR / "loans_train.csv")
-    train = df.sample(frac=0.8, random_state=42)
-    test = df.drop(train.index)
+    train = df.sample(frac=0.7, random_state=42)
+    remainder = df.drop(train.index)
+    validation = remainder.sample(frac=0.5, random_state=42)
+    test = remainder.drop(validation.index)
 
-    model = LogisticRiskModel()
-    model.fit(train)
+    candidates = []
+    for l2 in [0.0, 0.005, 0.02, 0.08]:
+        candidate = LogisticRiskModel(l2=l2).fit(train)
+        validation_scores = candidate.predict_proba(validation, calibrated=False)
+        candidates.append(
+            {
+                "l2": l2,
+                "validation_auc": roc_auc(validation["defaulted"].to_numpy(), validation_scores),
+                "validation_brier": brier_score(
+                    validation["defaulted"].to_numpy(), validation_scores
+                ),
+                "model": candidate,
+            }
+        )
+    selected = max(candidates, key=lambda row: (row["validation_auc"], -row["validation_brier"]))
+    model = selected["model"]
+    comparison = pd.DataFrame(
+        [{key: value for key, value in row.items() if key != "model"} for row in candidates]
+    )
+    comparison["selected"] = comparison["l2"] == selected["l2"]
+    model.fit_calibrator(validation)
     scores = model.predict_proba(test)
     y = test["defaulted"].to_numpy()
 
@@ -53,6 +83,9 @@ def main() -> None:
         "ks": ks_statistic(y, scores),
         "capture_rate_top_10pct": capture_rate_at_k(y, scores, 0.10),
         "capture_rate_top_20pct": capture_rate_at_k(y, scores, 0.20),
+        "brier_score": brier_score(y, scores),
+        "expected_calibration_error": expected_calibration_error(y, scores),
+        "selected_l2": model.l2,
     }
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -60,6 +93,10 @@ def main() -> None:
     pd.Series(report).to_json(DATA_DIR / "model_report.json", indent=2)
     calibration_table(y, scores).to_csv(DATA_DIR / "calibration_table.csv", index=False)
     model.feature_importance().to_csv(DATA_DIR / "feature_importance.csv", index=False)
+    comparison.to_csv(DATA_DIR / "model_comparison.csv", index=False)
+    threshold_table(y, scores, test["loan_amount"].to_numpy()).to_csv(
+        DATA_DIR / "threshold_analysis.csv", index=False
+    )
     log_to_mlflow(report, model)
 
     print("Saved model:", MODEL_PATH)

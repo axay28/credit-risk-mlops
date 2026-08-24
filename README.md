@@ -15,6 +15,8 @@ The project simulates a lending workflow:
 5. Serve applicant scores through FastAPI.
 6. Display model performance and monitoring views in Streamlit.
 7. Log training metrics and artifacts to MLflow when available.
+8. Compare regularization candidates, calibrate probabilities, and simulate approval thresholds.
+9. Return applicant-level reason codes for underwriting review workflows.
 
 ## Tech Stack
 
@@ -40,8 +42,8 @@ credit-risk-mlops/
   src/
     generate_data.py      # Synthetic lending data generator
     model.py              # NumPy logistic regression model and feature engineering
-    metrics.py            # AUC, Gini, KS, capture rate, calibration, PSI
-    train.py              # Train, evaluate, save model, optionally log to MLflow
+    metrics.py            # Ranking, calibration, drift, and threshold economics
+    train.py              # Compare, calibrate, evaluate, save, and optionally log models
     score.py              # CLI scoring for one borrower
     drift.py              # PSI drift monitoring for current vs reference data
   Dockerfile
@@ -76,12 +78,14 @@ On the generated holdout set:
 
 | Metric | Value |
 | --- | ---: |
-| Default rate | 0.1721 |
-| AUC | 0.7426 |
-| Gini | 0.4852 |
-| KS | 0.3895 |
-| Capture rate at top 10% risk | 0.2542 |
-| Capture rate at top 20% risk | 0.4213 |
+| Default rate | 0.1667 |
+| AUC | 0.7641 |
+| Gini | 0.5282 |
+| KS | 0.4280 |
+| Capture rate at top 10% risk | 0.2533 |
+| Capture rate at top 20% risk | 0.4500 |
+| Brier score | 0.1227 |
+| Expected calibration error | 0.0209 |
 
 What these mean:
 
@@ -101,6 +105,8 @@ The deployed dashboard shows:
 - signed feature weights
 - population stability index drift table
 - PSI chart
+- regularization candidate comparison
+- interactive approval-threshold simulator
 - sample training data
 
 Run locally:
@@ -161,9 +167,23 @@ Example response:
 ```json
 {
   "probability_of_default": 0.083,
-  "decision": "approve"
+  "decision": "approve",
+  "reason_codes": [
+    {
+      "feature": "credit_score",
+      "reason": "Lower credit score",
+      "contribution": 0.2143
+    }
+  ]
 }
 ```
+
+## Model Selection and Calibration
+
+Training uses separate train, validation, and test partitions. Several L2 regularization
+strengths are compared on validation AUC and Brier score. The selected model is calibrated
+on validation logits before final test metrics are produced. The dashboard threshold
+simulator reports approval rate, approved bad rate, captured defaults, and expected loss.
 
 ## MLflow Tracking
 
@@ -215,6 +235,7 @@ make drift
 make dashboard
 make api
 make mlflow
+make test
 ```
 
 ## Streamlit Cloud Deployment
@@ -227,6 +248,8 @@ Deployment settings:
 
 The app is already deployed here:
 
-https://credit-risk-mlops-dvum3nelkcgipt4aea5laa.streamlit.app/
+[Open the live Streamlit dashboard](https://credit-risk-mlops-dvum3nelkcgipt4aea5laa.streamlit.app/)
 
-
+Streamlit Community Cloud tracks the `main` branch. A push to `main` triggers a rebuild;
+`app/bootstrap.py` regenerates the model and all dashboard artifacts when the new deployment
+starts.

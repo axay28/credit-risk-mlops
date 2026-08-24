@@ -21,6 +21,18 @@ NUMERIC_FEATURES = [
 ]
 PURPOSE_VALUES = ["debt_consolidation", "home_improvement", "medical", "small_business", "education"]
 FEATURES = NUMERIC_FEATURES + [f"purpose_{p}" for p in PURPOSE_VALUES]
+FEATURE_LABELS = {
+    "annual_income": "Lower annual income",
+    "loan_amount": "Higher requested loan amount",
+    "interest_rate": "Higher interest rate",
+    "credit_score": "Lower credit score",
+    "dti": "Higher debt-to-income ratio",
+    "employment_years": "Shorter employment history",
+    "delinquencies_2y": "Recent delinquencies",
+    "open_credit_lines": "Number of open credit lines",
+    "prior_defaults": "Prior default history",
+    **{f"purpose_{purpose}": f"Loan purpose: {purpose.replace('_', ' ')}" for purpose in PURPOSE_VALUES},
+}
 
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
@@ -52,6 +64,8 @@ class LogisticRiskModel:
         self.weights: np.ndarray | None = None
         self.bias = 0.0
         self.stats: dict[str, Any] | None = None
+        self.calibration_a = 1.0
+        self.calibration_b = 0.0
 
     def fit(self, df: pd.DataFrame, target: str = "defaulted") -> "LogisticRiskModel":
         x, self.stats = featurize(df)
@@ -68,11 +82,67 @@ class LogisticRiskModel:
             self.bias -= self.lr * grad_b
         return self
 
-    def predict_proba(self, df: pd.DataFrame) -> np.ndarray:
+    def decision_function(self, df: pd.DataFrame) -> np.ndarray:
         if self.weights is None or self.stats is None:
             raise RuntimeError("Model is not fitted")
         x, _ = featurize(df, self.stats)
-        return sigmoid(x @ self.weights + self.bias)
+        return x @ self.weights + self.bias
+
+    def predict_proba(self, df: pd.DataFrame, calibrated: bool = True) -> np.ndarray:
+        logits = self.decision_function(df)
+        if calibrated:
+            logits = self.calibration_a * logits + self.calibration_b
+        return sigmoid(logits)
+
+    def fit_calibrator(
+        self,
+        df: pd.DataFrame,
+        target: str = "defaulted",
+        lr: float = 0.05,
+        epochs: int = 1000,
+    ) -> "LogisticRiskModel":
+        logits = self.decision_function(df)
+        y = df[target].to_numpy(dtype=float)
+        self.calibration_a = 1.0
+        self.calibration_b = 0.0
+        for _ in range(epochs):
+            pred = sigmoid(self.calibration_a * logits + self.calibration_b)
+            error = pred - y
+            self.calibration_a -= lr * float(np.mean(error * logits))
+            self.calibration_b -= lr * float(error.mean())
+        return self
+
+    def reason_codes(self, df: pd.DataFrame, top_n: int = 3) -> list[list[dict[str, float | str]]]:
+        if self.weights is None or self.stats is None:
+            raise RuntimeError("Model is not fitted")
+        if top_n <= 0:
+            raise ValueError("top_n must be positive")
+        x, _ = featurize(df, self.stats)
+        contributions = x * self.weights
+        results = []
+        for row_index, row in enumerate(contributions):
+            risk_indices = np.argsort(row)[::-1]
+            applicant_purpose = str(df.iloc[row_index]["loan_purpose"])
+            positive_indices = [
+                idx
+                for idx in risk_indices
+                if row[idx] > 0
+                and (
+                    not FEATURES[idx].startswith("purpose_")
+                    or FEATURES[idx] == f"purpose_{applicant_purpose}"
+                )
+            ][:top_n]
+            results.append(
+                [
+                    {
+                        "feature": FEATURES[idx],
+                        "reason": FEATURE_LABELS[FEATURES[idx]],
+                        "contribution": round(float(row[idx]), 4),
+                    }
+                    for idx in positive_indices
+                ]
+            )
+        return results
 
     def save(self, path: Path) -> None:
         if self.weights is None or self.stats is None:
@@ -83,6 +153,7 @@ class LogisticRiskModel:
             "bias": self.bias,
             "stats": self.stats,
             "features": FEATURES,
+            "calibration": {"a": self.calibration_a, "b": self.calibration_b},
         }
         path.write_text(json.dumps(payload, indent=2))
 
@@ -93,6 +164,9 @@ class LogisticRiskModel:
         model.weights = np.array(payload["weights"], dtype=float)
         model.bias = float(payload["bias"])
         model.stats = payload["stats"]
+        calibration = payload.get("calibration", {})
+        model.calibration_a = float(calibration.get("a", 1.0))
+        model.calibration_b = float(calibration.get("b", 0.0))
         return model
 
     def feature_importance(self) -> pd.DataFrame:
@@ -101,4 +175,3 @@ class LogisticRiskModel:
         return pd.DataFrame({"feature": FEATURES, "coefficient": self.weights}).sort_values(
             "coefficient", ascending=False
         )
-

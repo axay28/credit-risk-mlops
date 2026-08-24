@@ -19,6 +19,8 @@ def ensure_artifacts() -> None:
         DATA_DIR / "model_report.json",
         DATA_DIR / "calibration_table.csv",
         DATA_DIR / "feature_importance.csv",
+        DATA_DIR / "model_comparison.csv",
+        DATA_DIR / "threshold_analysis.csv",
         DATA_DIR / "drift_report.csv",
         MODEL_PATH,
     ]
@@ -32,4 +34,3 @@ def ensure_artifacts() -> None:
     generate_data()
     train_model()
     build_drift_report()
-

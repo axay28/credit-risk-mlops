@@ -80,24 +80,27 @@ def drift() -> list[dict]:
 
 
 @app.post("/score")
-def score(applicant: Applicant) -> dict[str, float | str]:
+def score(applicant: Applicant) -> dict[str, object]:
     row = pd.DataFrame([applicant_to_dict(applicant)])
     probability = float(model.predict_proba(row)[0])
     return {
         "probability_of_default": round(probability, 4),
         "decision": decision_from_probability(probability),
+        "reason_codes": model.reason_codes(row)[0],
     }
 
 
 @app.post("/score-batch")
-def score_batch(batch: BatchApplicants) -> dict[str, list[dict[str, float | str]]]:
+def score_batch(batch: BatchApplicants) -> dict[str, list[dict[str, object]]]:
     rows = pd.DataFrame([applicant_to_dict(applicant) for applicant in batch.applicants])
     probabilities = model.predict_proba(rows)
+    reasons = model.reason_codes(rows)
     scores = [
         {
             "probability_of_default": round(float(probability), 4),
             "decision": decision_from_probability(float(probability)),
+            "reason_codes": reason_codes[index],
         }
-        for probability in probabilities
+        for index, probability in enumerate(probabilities)
     ]
     return {"scores": scores}

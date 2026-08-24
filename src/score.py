@@ -19,12 +19,21 @@ def main() -> None:
 
     applicant = json.loads(sys.argv[1])
     model = LogisticRiskModel.load(MODEL_PATH)
-    pd_default = float(model.predict_proba(pd.DataFrame([applicant]))[0])
-    decision = "review" if pd_default >= 0.18 else "approve"
+    row = pd.DataFrame([applicant])
+    pd_default = float(model.predict_proba(row)[0])
+    decision = "decline" if pd_default >= 0.30 else "review" if pd_default >= 0.18 else "approve"
 
-    print(json.dumps({"probability_of_default": round(pd_default, 4), "decision": decision}, indent=2))
+    print(
+        json.dumps(
+            {
+                "probability_of_default": round(pd_default, 4),
+                "decision": decision,
+                "reason_codes": model.reason_codes(row)[0],
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
     main()
-

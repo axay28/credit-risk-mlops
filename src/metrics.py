@@ -7,9 +7,16 @@ import pandas as pd
 def roc_auc(y_true: np.ndarray, y_score: np.ndarray) -> float:
     y_true = np.asarray(y_true).astype(int)
     y_score = np.asarray(y_score).astype(float)
-    order = np.argsort(y_score)
-    ranks = np.empty_like(order, dtype=float)
-    ranks[order] = np.arange(1, len(y_score) + 1)
+    if y_true.ndim != 1 or y_score.ndim != 1 or len(y_true) != len(y_score):
+        raise ValueError("y_true and y_score must be one-dimensional arrays of equal length")
+    if not np.isin(y_true, [0, 1]).all():
+        raise ValueError("y_true must contain only binary labels 0 and 1")
+    if not np.isfinite(y_score).all():
+        raise ValueError("y_score must contain only finite values")
+
+    # Average ranks are required for tied predictions. Assigning arbitrary sequential
+    # ranks makes AUC depend on the input order when multiple applicants share a score.
+    ranks = pd.Series(y_score).rank(method="average").to_numpy()
 
     positives = y_true == 1
     n_pos = positives.sum()
@@ -22,6 +29,23 @@ def roc_auc(y_true: np.ndarray, y_score: np.ndarray) -> float:
 
 def gini(y_true: np.ndarray, y_score: np.ndarray) -> float:
     return 2 * roc_auc(y_true, y_score) - 1
+
+
+def brier_score(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    y_true = np.asarray(y_true, dtype=float)
+    y_score = np.asarray(y_score, dtype=float)
+    if y_true.shape != y_score.shape:
+        raise ValueError("y_true and y_score must have the same shape")
+    return float(np.mean((y_score - y_true) ** 2))
+
+
+def expected_calibration_error(
+    y_true: np.ndarray, y_score: np.ndarray, bins: int = 10
+) -> float:
+    table = calibration_table(y_true, y_score, bins=bins)
+    total = max(int(table["accounts"].sum()), 1)
+    gaps = (table["predicted_pd"] - table["observed_default_rate"]).abs()
+    return float((gaps * table["accounts"] / total).sum())
 
 
 def ks_statistic(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -68,3 +92,35 @@ def psi(expected: np.ndarray, actual: np.ndarray, bins: int = 10) -> float:
     actual_pct = np.clip(actual_counts / max(actual_counts.sum(), 1), 1e-6, 1)
     return float(np.sum((actual_pct - expected_pct) * np.log(actual_pct / expected_pct)))
 
+
+def threshold_table(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    exposure: np.ndarray,
+    thresholds: np.ndarray | None = None,
+    loss_given_default: float = 0.45,
+) -> pd.DataFrame:
+    y_true = np.asarray(y_true, dtype=int)
+    y_score = np.asarray(y_score, dtype=float)
+    exposure = np.asarray(exposure, dtype=float)
+    if not (y_true.shape == y_score.shape == exposure.shape):
+        raise ValueError("labels, scores, and exposure must have the same shape")
+    thresholds = thresholds if thresholds is not None else np.arange(0.05, 0.51, 0.025)
+    rows = []
+    total_defaults = max(int(y_true.sum()), 1)
+    for threshold in thresholds:
+        approved = y_score < threshold
+        approved_count = int(approved.sum())
+        approved_defaults = int(y_true[approved].sum())
+        rows.append(
+            {
+                "threshold": float(threshold),
+                "approval_rate": float(approved.mean()),
+                "approved_bad_rate": approved_defaults / max(approved_count, 1),
+                "defaults_captured": 1 - approved_defaults / total_defaults,
+                "expected_loss": float(
+                    (exposure[approved] * y_score[approved] * loss_given_default).sum()
+                ),
+            }
+        )
+    return pd.DataFrame(rows)

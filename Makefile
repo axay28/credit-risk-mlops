@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: data train drift score
+.PHONY: data train drift score test
 
 data:
 	$(PYTHON) src/generate_data.py
@@ -22,3 +22,6 @@ dashboard:
 
 mlflow:
 	mlflow ui --backend-store-uri ./mlruns
+
+test:
+	pytest -q
